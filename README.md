@@ -1,4 +1,4 @@
-# osc-sync
+# oscsync
 
 OSC Sync Protocol
 
