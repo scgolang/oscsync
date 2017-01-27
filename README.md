@@ -79,14 +79,14 @@ Slaves MUST provide the following methods:
 
 | Address                                         | Description
 | ----------------------------------------------- | --------------------------------------
-| `/sync/tempo f:bpm`                             | Update the Node's tempo.
-| `/sync/counter i:bar`                           | Slave MUST ensure that it's internal clock is at `bar`.
+| /sync/tempo f:bpm                               | Update the Node's tempo.
+| /sync/counter i:bar                             | Slave MUST ensure that it's internal clock is at `bar`.
 
 Slaves MAY also implement the following methods:
 
 | Address                                         | Description
 | ----------------------------------------------- | --------------------------------------
-| `/sync/register s:address i:port`               | The slave MUST synchronize to the master at address:port
+| /sync/register s:address i:port                 | The slave MUST synchronize to the master at address:port
 
 ## Acknowledgements
 
