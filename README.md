@@ -61,8 +61,8 @@ The master MUST provide the following methods:
 
 | Address                                         | Description
 | ----------------------------------------------- | --------------------------------------
-| `/sync/tempo f:bpm`                             | Update the Node's tempo.
-| `/sync/register s:address i:port`               | Used by slaves to register themselves with the Master.
+| /sync/tempo f:bpm                               | Update the Node's tempo.
+| /sync/register s:address i:port                 | Used by slaves to register themselves with the Master.
 
 The master MUST broadcast a sync message under any of the following conditions:
 
