@@ -55,7 +55,15 @@ A node is a program running on a computer which can either be a Master or a Slav
 
 #### Master
 
-##### Methods
+The master MUST provide a counter that gets updated every time the master moves forward one bar.
+
+#### Slave
+
+The slave MUST position itself according to the master's counter.
+
+## Methods
+
+### Master
 
 The master MUST provide the following methods:
 
@@ -69,7 +77,7 @@ The master MUST broadcast a sync message under any of the following conditions:
 * Tempo changes.
 * A new bar begins.
 
-#### Slave
+### Slave
 
 Responsible for synchronizing a process to a Master.
 
