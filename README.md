@@ -1,5 +1,7 @@
 # oscsync
 
+This document is a Work in Progress!
+
 OSC Sync Protocol
 
 ## Problem
