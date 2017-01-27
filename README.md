@@ -4,7 +4,7 @@ OSC Sync Protocol
 
 ## Problem
 
-Programs that are part of an NSM session need a way to synchronize to each other.
+Music programs that are clock-driven (e.g. sequencers) need a way to synchronize to each other.
 
 ## Requirements
 
