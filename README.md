@@ -43,29 +43,51 @@ The OSC Sync Protocol consists of the following primitives:
 
 ### Tempo
 
-Tempo is expressed as a 64-bit float that represents beats per minute. A beat is a quarter note and we will use those two terms interchangeably in this document.
+Tempo MUST be expressed as a 64-bit float that MUST represent beats per minute. A beat MUST be a quarter note and we will use those two terms interchangeably in this document.
 
 ### Bar
 
-A bar is 4 quarter notes (or beats) at a given tempo.
+A bar MUST be treated as 4 quarter notes (or beats) at a given tempo.
 
 ### Node
 
-A program running on a computer. A node can either be a master or slave.
+A node is a program running on a computer which can either be a Master or a Slave.
 
 #### Master
 
-Responsible for broadcasting a sync message under two conditions:
+##### Methods
+
+The master MUST provide the following methods:
+
+| Address                                         | Description
+| ----------------------------------------------- | --------------------------------------
+| `/sync/tempo f:bpm`                             | Update the Node's tempo.
+| `/sync/register s:address i:port`               | Used by slaves to register themselves with the Master.
+
+The master MUST broadcast a sync message under any of the following conditions:
 
 * Tempo changes.
 * A new bar begins.
 
 #### Slave
 
-Responsible for providing process synchronization according to messages it receives from a Master.
+Responsible for synchronizing a process to a Master.
 
-Slaves
+Part of this responsibility is that a slave SHOULD connect to a Master node when it's process starts.
+
+Slaves MUST provide the following methods:
+
+| Address                                         | Description
+| ----------------------------------------------- | --------------------------------------
+| `/sync/tempo f:bpm`                             | Update the Node's tempo.
+| `/sync/counter i:bar`                           | Slave MUST ensure that it's internal clock is at `bar`.
+
+Slaves MAY also implement the following methods:
+
+| Address                                         | Description
+| ----------------------------------------------- | --------------------------------------
+| `/sync/register s:address i:port`               | The slave MUST synchronize to the master at address:port
 
 ## Acknowledgements
 
-The ideas expressed by RBD in [this paper](http://opensoundcontrol.org/files/dannenberg-clocksync.pdf) on synchronization had a large impact on the design of OSC Sync.
+The ideas expressed by Roger Dannenberg in [this paper](http://opensoundcontrol.org/files/dannenberg-clocksync.pdf) on synchronization had a large impact on the design of OSC Sync.
