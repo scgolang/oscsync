@@ -43,11 +43,17 @@ The OSC Sync Protocol consists of the following primitives:
 
 ### Tempo
 
-Tempo MUST be expressed as a 64-bit float that MUST represent beats per minute. A beat MUST be a quarter note and we will use those two terms interchangeably in this document.
+Tempo MUST be expressed as a 32-bit float that MUST represent beats per minute. A beat MUST be a quarter note and we will use those two terms interchangeably in this document.
 
 ### Bar
 
 A bar MUST be treated as 4 quarter notes (or beats) at a given tempo.
+
+### Pulse
+
+A pulse is a subdivision of a quarter note such that there MUST be 24 pulses per quarter note (ppqn).
+
+A point in time SHOULD be specified as **BAR** **BEAT** **PULSE**, where **BAR** >= 1, **BEAT** is in the interval [0, 3], and **PULSE** is in the interval [0, 23].
 
 ### Node
 
@@ -55,11 +61,17 @@ A node is a program running on a computer which can either be a Master or a Slav
 
 #### Master
 
-The master MUST provide a counter that gets updated every time the master moves forward one bar.
+The master MUST provide a counter that the current bar.
+
+The counter MUST be broadcast to all registered slaves every time the master moves forward one bar.
 
 #### Slave
 
-The slave MUST position itself according to the master's counter.
+A slave MUST position itself according to the master's counter.
+
+A slave registers it's IP address and listening port with a master whenever it wishes to synchronize with the master. After that synchronization happens less frequently (once per bar) to conserve network bandwidth.
+
+After a slave registers the MASTER must send it a message on the next pulse indicating the tempo and the exact pulse that the master is at. This is so the slave doesn't have to wait until the next bar to synchronize with the master.
 
 ## Methods
 
@@ -89,6 +101,7 @@ Slaves MUST provide the following methods:
 | ----------------------------------------------- | --------------------------------------
 | /sync/tempo f:bpm                               | Update the Node's tempo.
 | /sync/counter i:bar                             | Slave MUST ensure that it's internal clock is at `bar`.
+| /sync/pulse f:bpm i:bar i:beat i:pulse          | Slave SHOULD use this message for fine-grained synchronization with the master.
 
 Slaves MAY also implement the following methods:
 
