@@ -1,6 +1,6 @@
 # oscsync
 
-This document is a Work in Progress!
+This document, as well as the reference implementation whose code lives next to this document, is a Work in Progress.
 
 OSC Sync Protocol
 
