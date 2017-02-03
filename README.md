@@ -85,11 +85,6 @@ The master MUST provide the following methods:
 | /sync/slave/add s:address i:port                           | Used by slaves to register themselves with the Master.
 | /sync/slave/remove s:address i:port                        | Used by slaves to deregister themselves with the Master.
 
-The master MUST broadcast a sync message under any of the following conditions:
-
-* Tempo changes.
-* A new bar begins.
-
 The master MAY also provide the following methods for monitoring/debugging:
 
 | Address                                                                | Description
@@ -106,8 +101,8 @@ Slaves MUST provide the following methods:
 
 | Address                                         | Description
 | ----------------------------------------------- | --------------------------------------
-| /sync/tempo f:bpm                               | Update the Node's tempo.
-| /sync/counter i:bar                             | Slave MUST ensure that it's internal clock is at `bar`.
+| /sync/tempo f:bpm                               | Update the Node's tempo. Masters MUST send this to every registered slave any time the master tempo changes.
+| /sync/counter i:bar                             | Slave MUST ensure that it's internal clock is at `bar`. A master MUST send this message any time it moves to a new bar.
 | /sync/pulse f:bpm i:bar i:beat i:pulse          | Slave SHOULD use this message for fine-grained synchronization with the master.
 
 Slaves MAY also implement the following methods:
