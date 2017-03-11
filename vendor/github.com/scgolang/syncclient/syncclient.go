@@ -95,6 +95,7 @@ ExpectPulse:
 	case <-time.After(1 * time.Second):
 		return errors.New("timeout waiting for first pulse")
 	case p = <-pulseChan:
+		slave.Pulse(p)
 	}
 
 	ticker = time.NewTicker(syncosc.GetPulseDuration(p.Tempo))

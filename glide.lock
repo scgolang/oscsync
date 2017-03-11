@@ -1,5 +1,5 @@
 hash: f6b34fae93cf3d02c9261a32f7df6689ad1a0e42a6849b049f015afc2e88af3a
-updated: 2017-03-11T14:44:12.644766985-06:00
+updated: 2017-03-11T14:53:11.494281397-06:00
 imports:
 - name: github.com/fsnotify/fsnotify
   version: 7d7316ed6e1ed2de075aab8dfc76de5d158d66e1
@@ -29,7 +29,7 @@ imports:
 - name: github.com/scgolang/osc
   version: 54517bea1fbabe072e27bf3a1490e69e5be69b32
 - name: github.com/scgolang/syncclient
-  version: bf3846e5bdd8142d09c22c7c03150deec49bd5f6
+  version: 03e6bfcbbade20b3701709841c41827901b7501b
 - name: github.com/scgolang/syncosc
   version: c6aea8e512be6319bd564b0973ef786ae8f59935
 - name: github.com/spf13/afero
