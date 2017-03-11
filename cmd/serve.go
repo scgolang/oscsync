@@ -60,8 +60,10 @@ func init() {
 type Server struct {
 	ServerConfig
 
+	conn      osc.Conn
 	ctx       context.Context
 	pulse     uint64
+	slaves    []net.Addr
 	tempoChan chan float32
 }
 
@@ -74,6 +76,18 @@ func NewServer(config ServerConfig) (*Server, error) {
 		tempoChan: make(chan float32, 1),
 	}
 	return srv, nil
+}
+
+// HandleSlaveAdd handles the OSC message to add a slave.
+func (srv *Server) HandleSlaveAdd(m osc.Message) error {
+	// TODO
+	return nil
+}
+
+// HandleSlaveRemove handles the OSC message to remove a slave.
+func (srv *Server) HandleSlaveRemove(m osc.Message) error {
+	// TODO
+	return nil
 }
 
 // HandleTempo handles tempo updates.
@@ -96,7 +110,9 @@ func (srv *Server) loop(ctx context.Context) error {
 		select {
 		case <-ticker.C:
 			if srv.pulse++; srv.pulse%96 == 0 {
-				// Send bar
+				if err := srv.sendPulses(); err != nil {
+					return errors.Wrap(err, "sending pulse")
+				}
 			}
 		case tempo := <-srv.tempoChan:
 			ticker.Stop()
@@ -105,6 +121,12 @@ func (srv *Server) loop(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// pulseMessage generates an OSC message with information about the
+// current tempo/pulse.
+func (srv *Server) pulseMessage() (osc.Message, error) {
+	return osc.Message{}, nil
 }
 
 // Run runs an oscsync server.
@@ -116,19 +138,45 @@ func (srv *Server) Run() error {
 	if err != nil {
 		return errors.Wrap(err, "resolving listen address")
 	}
-	oscsrv, err := osc.ListenUDP("udp", laddr)
+	oscsrv, err := osc.ListenUDPContext(ctx, "udp", laddr)
 	if err != nil {
 		return errors.Wrap(err, "creating OSC server")
 	}
+	srv.conn = oscsrv
+
 	g.Go(func() error {
 		return oscsrv.Serve(osc.Dispatcher{
-			syncosc.AddressTempo: osc.Method(srv.HandleTempo),
+			syncosc.AddressTempo:       osc.Method(srv.HandleTempo),
+			syncosc.AddressSlaveAdd:    osc.Method(srv.HandleSlaveAdd),
+			syncosc.AddressSlaveRemove: osc.Method(srv.HandleSlaveRemove),
 		})
 	})
 	g.Go(func() error {
 		return srv.loop(ctx)
 	})
 	return g.Wait()
+}
+
+// sendPulses sends a message with the current pulse to all the slaves.
+func (srv *Server) sendPulses() error {
+	for _, addr := range srv.slaves {
+		if err := srv.sendPulse(addr); err != nil {
+			return errors.Wrapf(err, "sending pulse to %s", addr)
+		}
+	}
+	return nil
+}
+
+// sendPulse sends a pulse message to addr.
+func (srv *Server) sendPulse(addr net.Addr) error {
+	m, err := srv.pulseMessage()
+	if err != nil {
+		return errors.Wrap(err, "creating pulse message")
+	}
+	if srv.conn == nil {
+		return errors.Wrap(err, "OSC connection has not been initialized")
+	}
+	return srv.conn.SendTo(addr, m)
 }
 
 // ServerConfig contains configurationn for an oscsync server.
