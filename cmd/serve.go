@@ -81,6 +81,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 
 		slaveAdd:    make(chan net.Addr, 8),
 		slaveRemove: make(chan net.Addr, 8),
+		slaves:      map[net.Addr]struct{}{},
 
 		tempoChan: make(chan float32, 8),
 	}
@@ -120,22 +121,22 @@ func (srv *Server) HandleTempo(m osc.Message) error {
 	return nil
 }
 
-// incrPulse increments the pulse and may also broadcast the current pulse to all slaves.
-// pulses are broadcast to slaves if there is a tempo update, or if we have started a new bar.
+// incrPulse increments the pulse and broadcasts to all slaves.
 func (srv *Server) incrPulse(newTempo, oldTempo float32, newSlave net.Addr) error {
-	if srv.pulse++; srv.pulse%96 == 0 || newTempo != oldTempo {
-		var (
-			i      = 0
-			slaves = make([]net.Addr, len(srv.slaves))
-		)
-		for slave := range srv.slaves {
-			slaves[i] = slave
-			i++
-		}
-		if err := srv.sendPulse(srv.pulse, slaves, newTempo); err != nil {
-			return errors.Wrap(err, "sending pulse")
-		}
-	} else if newSlave != nil {
+	srv.pulse++
+
+	var (
+		i      = 0
+		slaves = make([]net.Addr, len(srv.slaves))
+	)
+	for slave := range srv.slaves {
+		slaves[i] = slave
+		i++
+	}
+	if err := srv.sendPulse(srv.pulse, slaves, newTempo); err != nil {
+		return errors.Wrap(err, "sending pulse")
+	}
+	if newSlave != nil {
 		if err := srv.sendPulse(srv.pulse, []net.Addr{newSlave}, newTempo); err != nil {
 			return errors.Wrap(err, "sending pulse")
 		}

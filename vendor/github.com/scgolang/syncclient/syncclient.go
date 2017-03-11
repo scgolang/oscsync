@@ -6,7 +6,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/scgolang/osc"
@@ -38,14 +37,9 @@ func Connect(ctx context.Context, slave Slave, host string) error {
 	if err != nil {
 		return errors.Wrap(err, "connecting to master")
 	}
-	pulseChan := make(chan syncosc.Pulse, 1)
-
 	// Start the OSC server so we receive the master's messages.
 	g.Go(func() error {
-		return tickerLoop(gctx, slave, pulseChan)
-	})
-	g.Go(func() error {
-		return receivePulses(conn, pulseChan)
+		return receivePulses(conn, slave)
 	})
 	// Announce the slave to the master.
 	portStr := strings.Split(conn.LocalAddr().String(), ":")[1]
@@ -65,61 +59,14 @@ func Connect(ctx context.Context, slave Slave, host string) error {
 	return g.Wait()
 }
 
-func receivePulses(conn osc.Conn, pulseChan chan<- syncosc.Pulse) error {
+func receivePulses(conn osc.Conn, slave Slave) error {
 	return conn.Serve(osc.Dispatcher{
 		syncosc.AddressPulse: osc.Method(func(m osc.Message) error {
 			pulse, err := syncosc.PulseFromMessage(m)
 			if err != nil {
 				return errors.Wrap(err, "getting pulse from message")
 			}
-			pulseChan <- pulse
-			return nil
+			return slave.Pulse(pulse)
 		}),
 	})
-}
-
-func tickerLoop(ctx context.Context, slave Slave, pulseChan <-chan syncosc.Pulse) error {
-	var (
-		p      syncosc.Pulse
-		ticker *time.Ticker
-	)
-
-	// Don't do anything until we have received the first pulse.
-	// The master should send this right after the announcement is successful.
-	// Announcement shouldn't take any longer than a second.
-	// In fact, it shouldn't take longer than a couple milliseconds.
-ExpectPulse:
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-time.After(1 * time.Second):
-		return errors.New("timeout waiting for first pulse")
-	case p = <-pulseChan:
-		slave.Pulse(p)
-	}
-
-	ticker = time.NewTicker(syncosc.GetPulseDuration(p.Tempo))
-
-EnterLoop:
-	for range ticker.C {
-		// Has there been a tempo update?
-		select {
-		default:
-			p.Count++
-			if err := slave.Pulse(p); err != nil {
-				return errors.Wrap(err, "invoking slave.Pulse")
-			}
-			if p.Count%(syncosc.PulsesPerBar-1) == 0 {
-				// We are about to hit a new bar.
-				goto ExpectPulse
-			}
-		case <-ctx.Done():
-			return nil
-		case p = <-pulseChan:
-			// Tempo has changed.
-			ticker = time.NewTicker(syncosc.GetPulseDuration(p.Tempo))
-			goto EnterLoop
-		}
-	}
-	return nil
 }
