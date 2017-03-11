@@ -89,13 +89,21 @@ func NewServer(config ServerConfig) (*Server, error) {
 
 // HandleSlaveAdd handles the OSC message to add a slave.
 func (srv *Server) HandleSlaveAdd(m osc.Message) error {
-	// TODO
+	addr, err := readUDPAddr(m)
+	if err != nil {
+		return errors.Wrap(err, "getting addr from osc message")
+	}
+	srv.slaveAdd <- addr
 	return nil
 }
 
 // HandleSlaveRemove handles the OSC message to remove a slave.
 func (srv *Server) HandleSlaveRemove(m osc.Message) error {
-	// TODO
+	addr, err := readUDPAddr(m)
+	if err != nil {
+		return errors.Wrap(err, "getting addr from osc message")
+	}
+	srv.slaveRemove <- addr
 	return nil
 }
 
@@ -160,7 +168,7 @@ EnterLoop:
 		}
 		if srv.tempo != newTempo {
 			srv.tempo = newTempo
-			goto EnterLoop
+			goto EnterLoop // re-enter the loop since we've changed the ticker
 		}
 	}
 	return nil
@@ -226,4 +234,20 @@ func getPulseNS(tempo float32) time.Duration {
 		return time.Duration(0)
 	}
 	return time.Duration(float32(25e8) / tempo)
+}
+
+// readUDPAddr reads a host/port from an osc message and returns it as a net.Addr
+func readUDPAddr(m osc.Message) (net.Addr, error) {
+	if expected, got := 2, len(m.Arguments); expected != got {
+		return nil, errors.Errorf("expected %d arguments, got %d", expected, got)
+	}
+	host, err := m.Arguments[0].ReadString()
+	if err != nil {
+		return nil, errors.Wrap(err, "reading host")
+	}
+	port, err := m.Arguments[1].ReadInt32()
+	if err != nil {
+		return nil, errors.Wrap(err, "reading port")
+	}
+	return net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(int(port))))
 }
