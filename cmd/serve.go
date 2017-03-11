@@ -38,7 +38,6 @@ var serveCmd = &cobra.Command{
 			flags  = cmd.Flags()
 		)
 		flags.StringVar(&config.host, "h", "0.0.0.0", "listen addr")
-		flags.IntVar(&config.port, "p", 5776, "listen port")
 		flags.Float32Var(&config.tempo, "t", 120, "tempo in bpm")
 
 		if err := flags.Parse(args); err != nil {
@@ -60,11 +59,17 @@ func init() {
 type Server struct {
 	ServerConfig
 
-	conn      osc.Conn
-	ctx       context.Context
-	pulse     uint64
-	slaves    []net.Addr
+	conn osc.Conn
+	ctx  context.Context
+
+	pulse uint64
+
+	slaves      map[net.Addr]struct{}
+	slaveAdd    chan net.Addr
+	slaveRemove chan net.Addr
+
 	tempoChan chan float32
+	ticker    *time.Ticker
 }
 
 // NewServer creates a new oscsync server.
@@ -72,8 +77,12 @@ func NewServer(config ServerConfig) (*Server, error) {
 	srv := &Server{
 		ServerConfig: config,
 
-		ctx:       context.Background(),
-		tempoChan: make(chan float32, 1),
+		ctx: context.Background(),
+
+		slaveAdd:    make(chan net.Addr, 8),
+		slaveRemove: make(chan net.Addr, 8),
+
+		tempoChan: make(chan float32, 8),
 	}
 	return srv, nil
 }
@@ -103,30 +112,58 @@ func (srv *Server) HandleTempo(m osc.Message) error {
 	return nil
 }
 
-func (srv *Server) loop(ctx context.Context) error {
-	ticker := time.NewTicker(srv.getPulseNS())
-
-	for {
-		select {
-		case <-ticker.C:
-			if srv.pulse++; srv.pulse%96 == 0 {
-				if err := srv.sendPulses(); err != nil {
-					return errors.Wrap(err, "sending pulse")
-				}
-			}
-		case tempo := <-srv.tempoChan:
-			ticker.Stop()
-			srv.tempo = tempo
-			ticker = time.NewTicker(srv.getPulseNS())
+// incrPulse increments the pulse and may also broadcast the current pulse to all slaves.
+// pulses are broadcast to slaves if there is a tempo update, or if we have started a new bar.
+func (srv *Server) incrPulse(newTempo, oldTempo float32, newSlave net.Addr) error {
+	if srv.pulse++; srv.pulse%96 == 0 || newTempo != oldTempo {
+		var (
+			i      = 0
+			slaves = make([]net.Addr, len(srv.slaves))
+		)
+		for slave := range srv.slaves {
+			slaves[i] = slave
+			i++
+		}
+		if err := srv.sendPulse(srv.pulse, slaves, newTempo); err != nil {
+			return errors.Wrap(err, "sending pulse")
+		}
+	} else if newSlave != nil {
+		if err := srv.sendPulse(srv.pulse, []net.Addr{newSlave}, newTempo); err != nil {
+			return errors.Wrap(err, "sending pulse")
 		}
 	}
 	return nil
 }
 
-// pulseMessage generates an OSC message with information about the
-// current tempo/pulse.
-func (srv *Server) pulseMessage() (osc.Message, error) {
-	return osc.Message{}, nil
+// loop is the main loop of the server.
+func (srv *Server) loop(ctx context.Context) error {
+	srv.ticker = time.NewTicker(getPulseNS(srv.tempo))
+
+EnterLoop:
+	for range srv.ticker.C {
+		var (
+			newSlave net.Addr
+			newTempo = srv.tempo
+		)
+		select {
+		default:
+		case newSlave = <-srv.slaveAdd:
+			srv.slaves[newSlave] = struct{}{}
+		case slave := <-srv.slaveRemove:
+			delete(srv.slaves, slave)
+		case newTempo = <-srv.tempoChan:
+			srv.ticker.Stop()
+			srv.ticker = time.NewTicker(getPulseNS(newTempo))
+		}
+		if err := srv.incrPulse(newTempo, srv.tempo, newSlave); err != nil {
+			return errors.Wrap(err, "incrementing pulse")
+		}
+		if srv.tempo != newTempo {
+			srv.tempo = newTempo
+			goto EnterLoop
+		}
+	}
+	return nil
 }
 
 // Run runs an oscsync server.
@@ -134,7 +171,7 @@ func (srv *Server) Run() error {
 	// Run the osc server.
 	g, ctx := errgroup.WithContext(srv.ctx)
 
-	laddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(srv.host, strconv.Itoa(srv.port)))
+	laddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(srv.host, strconv.Itoa(syncosc.MasterPort)))
 	if err != nil {
 		return errors.Wrap(err, "resolving listen address")
 	}
@@ -157,35 +194,36 @@ func (srv *Server) Run() error {
 	return g.Wait()
 }
 
-// sendPulses sends a message with the current pulse to all the slaves.
-func (srv *Server) sendPulses() error {
-	for _, addr := range srv.slaves {
-		if err := srv.sendPulse(addr); err != nil {
-			return errors.Wrapf(err, "sending pulse to %s", addr)
+// sendPulse sends a pulse message to addr.
+func (srv *Server) sendPulse(pulse uint64, slaves []net.Addr, tempo float32) error {
+	if srv.conn == nil {
+		return errors.New("OSC connection has not been initialized")
+	}
+	for _, slave := range slaves {
+		if err := srv.conn.SendTo(slave, osc.Message{
+			Address: syncosc.AddressPulse,
+			Arguments: osc.Arguments{
+				osc.Float(tempo),
+				osc.Int(int32(pulse)),
+			},
+		}); err != nil {
+			return errors.Wrapf(err, "sending pulse message to %s", slave)
 		}
 	}
 	return nil
 }
 
-// sendPulse sends a pulse message to addr.
-func (srv *Server) sendPulse(addr net.Addr) error {
-	m, err := srv.pulseMessage()
-	if err != nil {
-		return errors.Wrap(err, "creating pulse message")
-	}
-	if srv.conn == nil {
-		return errors.Wrap(err, "OSC connection has not been initialized")
-	}
-	return srv.conn.SendTo(addr, m)
-}
-
 // ServerConfig contains configurationn for an oscsync server.
 type ServerConfig struct {
 	host  string
-	port  int
 	tempo float32
 }
 
-func (config ServerConfig) getPulseNS() time.Duration {
-	return time.Duration(float32(25e8) / config.tempo)
+// getPulseNS converts the tempo in bpm to a time.Duration
+// callers are responsible for making concurrent access safe.
+func getPulseNS(tempo float32) time.Duration {
+	if tempo == 0 {
+		return time.Duration(0)
+	}
+	return time.Duration(float32(25e8) / tempo)
 }
