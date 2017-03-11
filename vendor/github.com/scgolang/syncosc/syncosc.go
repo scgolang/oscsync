@@ -49,7 +49,7 @@ func PulseFromMessage(m osc.Message) (Pulse, error) {
 	if err != nil {
 		return p, errors.Wrap(err, "reading tempo")
 	}
-	count, err := m.Arguments[0].ReadInt32()
+	count, err := m.Arguments[1].ReadInt32()
 	if err != nil {
 		return p, errors.Wrap(err, "reading counter")
 	}
