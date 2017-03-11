@@ -2,6 +2,30 @@
 
 Synchronize programs over OSC.
 
+[Install](#install)
+[Getting Started](#getting-started)
+[API](#api)
+
+## Install
+
+```
+go get github.com/scgolang/oscsync
+```
+
+## Getting Started
+
+Run the master:
+
+```
+oscsync serve
+```
+
+Connect a slave that just prints the pulses coming from the master:
+
+```
+oscsync pulses
+```
+
 ## API
 
 ### Pulse
