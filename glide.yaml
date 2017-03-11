@@ -1,0 +1,13 @@
+package: github.com/scgolang/oscsync
+import:
+- package: github.com/pkg/errors
+  version: ^0.8.0
+- package: github.com/scgolang/osc
+  version: ^0.9.9
+- package: github.com/scgolang/syncosc
+  version: ^0.1.0
+- package: github.com/spf13/cobra
+- package: github.com/spf13/viper
+- package: golang.org/x/sync
+  subpackages:
+  - errgroup
