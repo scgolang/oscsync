@@ -62,7 +62,7 @@ func Connect(ctx context.Context, slave Slave, host string) error {
 	}); err != nil {
 		return errors.Wrap(err, "sending add-slave message")
 	}
-	return nil
+	return g.Wait()
 }
 
 func receivePulses(conn osc.Conn, pulseChan chan<- syncosc.Pulse) error {
