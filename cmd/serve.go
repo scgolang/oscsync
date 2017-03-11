@@ -145,7 +145,7 @@ func (srv *Server) incrPulse(newTempo, oldTempo float32, newSlave net.Addr) erro
 
 // loop is the main loop of the server.
 func (srv *Server) loop(ctx context.Context) error {
-	srv.ticker = time.NewTicker(getPulseNS(srv.tempo))
+	srv.ticker = time.NewTicker(syncosc.GetPulseDuration(srv.tempo))
 
 EnterLoop:
 	for range srv.ticker.C {
@@ -161,7 +161,7 @@ EnterLoop:
 			delete(srv.slaves, slave)
 		case newTempo = <-srv.tempoChan:
 			srv.ticker.Stop()
-			srv.ticker = time.NewTicker(getPulseNS(newTempo))
+			srv.ticker = time.NewTicker(syncosc.GetPulseDuration(newTempo))
 		}
 		if err := srv.incrPulse(newTempo, srv.tempo, newSlave); err != nil {
 			return errors.Wrap(err, "incrementing pulse")
@@ -225,15 +225,6 @@ func (srv *Server) sendPulse(pulse uint64, slaves []net.Addr, tempo float32) err
 type ServerConfig struct {
 	host  string
 	tempo float32
-}
-
-// getPulseNS converts the tempo in bpm to a time.Duration
-// callers are responsible for making concurrent access safe.
-func getPulseNS(tempo float32) time.Duration {
-	if tempo == 0 {
-		return time.Duration(0)
-	}
-	return time.Duration(float32(25e8) / tempo)
 }
 
 // readUDPAddr reads a host/port from an osc message and returns it as a net.Addr
