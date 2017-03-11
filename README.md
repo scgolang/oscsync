@@ -2,11 +2,9 @@
 
 Synchronize programs over OSC.
 
-[Install](#install)
-
-[Getting Started](#getting-started)
-
-[API](#api)
+* [Install](#install)
+* [Getting Started](#getting-started)
+* [API](#api)
 
 ## Install
 
