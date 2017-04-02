@@ -110,8 +110,14 @@ func (srv *Server) HandleSlaveRemove(m osc.Message) error {
 
 // HandleTempo handles tempo updates.
 func (srv *Server) HandleTempo(m osc.Message) error {
-	if expected, got := 1, len(m.Arguments); expected != got {
-		return errors.Errorf("expected %d argument(s), got %d", expected, got)
+	if len(m.Arguments) == 0 {
+		return srv.conn.SendTo(m.Sender, osc.Message{
+			Address: "/reply",
+			Arguments: osc.Arguments{
+				osc.String(syncosc.AddressTempo),
+				osc.Float(srv.tempo),
+			},
+		})
 	}
 	tempo, err := m.Arguments[0].ReadFloat32()
 	if err != nil {
@@ -191,7 +197,7 @@ func (srv *Server) Run() error {
 	srv.conn = oscsrv
 
 	g.Go(func() error {
-		return oscsrv.Serve(osc.Dispatcher{
+		return oscsrv.Serve(2, osc.Dispatcher{
 			syncosc.AddressTempo:       osc.Method(srv.HandleTempo),
 			syncosc.AddressSlaveAdd:    osc.Method(srv.HandleSlaveAdd),
 			syncosc.AddressSlaveRemove: osc.Method(srv.HandleSlaveRemove),

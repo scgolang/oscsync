@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/scgolang/osc"
@@ -40,19 +41,20 @@ var tempoCmd = &cobra.Command{
 		if err := flags.Parse(args); err != nil {
 			return err
 		}
-		if len(flags.Args()) < 1 {
-			return errors.New("usage: oscsync [OPTIONS] tempo BPM")
-		}
-		tempo, err := strconv.ParseFloat(flags.Args()[0], 32)
-		if err != nil {
-			return err
-		}
 		addr := fmt.Sprintf("%s:%d", host, syncosc.MasterPort)
+
+		if len(flags.Args()) == 0 {
+			return readTempo(addr)
+		}
 		raddr, err := net.ResolveUDPAddr("udp", addr)
 		if err != nil {
 			return err
 		}
 		conn, err := osc.DialUDP("udp", nil, raddr)
+		if err != nil {
+			return err
+		}
+		tempo, err := strconv.ParseFloat(flags.Args()[0], 32)
 		if err != nil {
 			return err
 		}
@@ -67,4 +69,75 @@ var tempoCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(tempoCmd)
+}
+
+// readTempo reads the current tempo of an oscsync server.
+func readTempo(addr string) error {
+	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	if err != nil {
+		return err
+	}
+	conn, err := osc.ListenUDP("udp", laddr)
+	if err != nil {
+		return err
+	}
+	var (
+		done    = make(chan struct{})
+		errchan = make(chan error, 1)
+	)
+	go func() {
+		if err := conn.Serve(1, osc.Dispatcher{
+			"/reply": handleTempoReply(done),
+		}); err != nil {
+			errchan <- err
+		}
+		close(errchan)
+	}()
+	raddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return err
+	}
+	if err := conn.SendTo(raddr, osc.Message{Address: syncosc.AddressTempo}); err != nil {
+		return err
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		return errors.New("timeout waiting for tempo reply")
+	}
+
+	select {
+	default:
+	case err := <-errchan:
+		return err
+	}
+	return nil
+}
+
+// handleTempoReply handles a reply to get the tempo of an oscsync server.
+func handleTempoReply(done chan struct{}) osc.Method {
+	return osc.Method(func(m osc.Message) error {
+		defer close(done)
+
+		if len(m.Arguments) < 1 {
+			return errors.New("expected at least 1 argument to /reply")
+		}
+		address, err := m.Arguments[0].ReadString()
+		if err != nil {
+			return err
+		}
+		if address != syncosc.AddressTempo {
+			return nil
+		}
+		if len(m.Arguments) < 2 {
+			return errors.New("expected at least 2 arguments in tempo reply")
+		}
+		tempo, err := m.Arguments[1].ReadFloat32()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%f\n", tempo)
+		return nil
+	})
 }
