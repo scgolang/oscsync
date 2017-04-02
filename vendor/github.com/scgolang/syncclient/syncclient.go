@@ -13,16 +13,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Slave is any type that can sync to an oscsync master.
-// The slave's Pulse method will be invoked every time a new pulse is received
-// from the oscsync master.
-type Slave interface {
-	Pulse(syncosc.Pulse) error
-}
-
 // Connect connects a slave to an oscsync master.
 // This func blocks forever.
-func Connect(ctx context.Context, slave Slave, host string) error {
+func Connect(ctx context.Context, slave syncosc.Slave, host string) error {
 	local, err := net.ResolveUDPAddr("udp", "0.0.0.0:0")
 	if err != nil {
 		return errors.Wrap(err, "creating listening address")
@@ -59,8 +52,9 @@ func Connect(ctx context.Context, slave Slave, host string) error {
 	return g.Wait()
 }
 
-func receivePulses(conn osc.Conn, slave Slave) error {
-	return conn.Serve(osc.Dispatcher{
+func receivePulses(conn osc.Conn, slave syncosc.Slave) error {
+	// Arbitrary number of worker routines.
+	return conn.Serve(8, osc.Dispatcher{
 		syncosc.AddressPulse: osc.Method(func(m osc.Message) error {
 			pulse, err := syncosc.PulseFromMessage(m)
 			if err != nil {
