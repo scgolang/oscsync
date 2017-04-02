@@ -144,8 +144,8 @@ func (srv *Server) incrPulse(newTempo, oldTempo float32, newSlave net.Addr) erro
 	return nil
 }
 
-// loop is the main loop of the server.
-func (srv *Server) loop(ctx context.Context) error {
+// Main is the main loop of the server.
+func (srv *Server) Main(ctx context.Context) error {
 	srv.ticker = time.NewTicker(syncosc.GetPulseDuration(srv.tempo))
 
 EnterLoop:
@@ -198,7 +198,7 @@ func (srv *Server) Run() error {
 		})
 	})
 	g.Go(func() error {
-		return srv.loop(ctx)
+		return srv.Main(ctx)
 	})
 	return g.Wait()
 }
